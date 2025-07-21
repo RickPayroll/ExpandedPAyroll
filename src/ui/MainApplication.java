@@ -10,16 +10,11 @@ public class MainApplication {
     public static void main(String[] args) {
         // Set Look and Feel
         try {
-		    System.setProperty("awt.useSystemAAFontSettings", "on");
-    System.setProperty("swing.aatext", "true");
+            System.setProperty("awt.useSystemAAFontSettings", "on");
+            System.setProperty("swing.aatext", "true");
     
-            // Try to set system look and feel
-            for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
-                if ("Windows".equals(info.getName())) {
-                    UIManager.setLookAndFeel(info.getClassName());
-                    break;
-                }
-            }
+            // FIXED: Use cross-platform look and feel to avoid compatibility issues
+            UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeel());
         } catch (Exception e) {
             // Use default if system L&F fails
             System.out.println("Could not set system look and feel, using default");

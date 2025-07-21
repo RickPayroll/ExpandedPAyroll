@@ -450,10 +450,10 @@ public class LoginForm extends JFrame {
 
     // FIXED: Authentication method with correct column name 'password_hash'
     private boolean authenticateUser(int employeeId, String password) {
-        // CORRECTED: Using 'password_hash' column instead of 'password'
+        // CORRECTED: Using 'password' column (based on your actual database schema)
         String query = "SELECT e.employee_id, e.first_name, e.last_name, e.position FROM employees e " +
                 "JOIN credentials c ON e.employee_id = c.employee_id " +
-                "WHERE e.employee_id = ? AND c.password_hash = ?";
+                "WHERE e.employee_id = ? AND c.password = ?";
 
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(query)) {
@@ -474,7 +474,7 @@ public class LoginForm extends JFrame {
                     LOGGER.warning(String.format("❌ Authentication FAILED for employee ID: %d", employeeId));
                     
                     // Enhanced debugging with correct column names
-                    String debugQuery = "SELECT c.employee_id, c.username, c.password_hash, " +
+                    String debugQuery = "SELECT c.employee_id, c.password, " +
                             "e.first_name, e.last_name " +
                             "FROM credentials c " +
                             "JOIN employees e ON c.employee_id = e.employee_id " +
@@ -484,17 +484,15 @@ public class LoginForm extends JFrame {
                         debugStmt.setInt(1, employeeId);
                         try (ResultSet debugRs = debugStmt.executeQuery()) {
                             if (debugRs.next()) {
-                                String username = debugRs.getString("username");
-                                String actualPasswordHash = debugRs.getString("password_hash");
+                                String actualPassword = debugRs.getString("password");
                                 String firstName = debugRs.getString("first_name");
                                 String lastName = debugRs.getString("last_name");
                                 
                                 LOGGER.info(String.format("🔍 Debug Info for Employee %d:", employeeId));
                                 LOGGER.info(String.format("   Name: %s %s", firstName, lastName));
-                                LOGGER.info(String.format("   Username: %s", username));
-                                LOGGER.info(String.format("   Stored Password Hash: %s", actualPasswordHash));
+                                LOGGER.info(String.format("   Stored Password: %s", actualPassword));
                                 LOGGER.info(String.format("   Provided Password: %s", password));
-                                LOGGER.info(String.format("   Password Match: %s", password.equals(actualPasswordHash)));
+                                LOGGER.info(String.format("   Password Match: %s", password.equals(actualPassword)));
                             } else {
                                 LOGGER.warning("❌ Employee ID does not exist in credentials table: " + employeeId);
                             }
@@ -523,30 +521,17 @@ public class LoginForm extends JFrame {
             // Show initial success message
             showStatus("✅ Login successful! Welcome, " + employee.getFirstName(), new Color(0, 128, 0));
             
-            // Get user role based on position
-            UserRole role = PositionRoleMapper.getUserRole(employee.getPosition());
-            String dashboardType = PositionRoleMapper.getDashboardType(employee.getPosition());
-            
-            // Log successful login with role information
-            LOGGER.info(String.format("🔐 SUCCESSFUL LOGIN: %s (ID: %d) | Position: %s | Role: %s | Access Level: %d | Dashboard: %s",
+            // SIMPLIFIED: Direct dashboard opening based on position
+            LOGGER.info(String.format("🔐 SUCCESSFUL LOGIN: %s (ID: %d) | Position: %s",
                     employee.getFullName(), 
                     employee.getEmployeeId(), 
-                    employee.getPosition(), 
-                    role.getDisplayName(), 
-                    role.getAccessLevel(),
-                    dashboardType));
-            
-            // Show role-specific welcome message
-            String welcomeMessage = buildWelcomeMessage(employee, role, dashboardType);
-            
-            // Display welcome dialog with role information
-            showRoleWelcomeDialog(employee, role, dashboardType, welcomeMessage);
+                    employee.getPosition()));
             
             // Small delay for better user experience, then open appropriate dashboard
-            Timer dashboardTimer = new Timer(1500, new ActionListener() {
+            Timer dashboardTimer = new Timer(1000, new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    openRoleBasedDashboard(employee, role, dashboardType);
+                    openAppropriateInterface(employee);
                 }
             });
             dashboardTimer.setRepeats(false);
@@ -560,189 +545,71 @@ public class LoginForm extends JFrame {
             openFallbackDashboard(employee);
         }
     }
-
+    
     /**
-     * Build comprehensive welcome message based on user role
+     * FIXED: Handle failed login attempts
      */
-    private String buildWelcomeMessage(Employee employee, UserRole role, String dashboardType) {
-        StringBuilder message = new StringBuilder();
+    private void handleFailedLogin(String errorMessage) {
+        showStatus("❌ " + errorMessage, Color.RED);
         
-        message.append("🎉 Welcome to MotorPH Payroll System!\n\n");
-        message.append("Employee: ").append(employee.getFullName()).append("\n");
-        message.append("Position: ").append(employee.getPosition()).append("\n");
-        message.append("Access Level: ").append(role.getDisplayName()).append("\n");
-        message.append("Dashboard: ").append(dashboardType).append("\n\n");
+        // Clear password field for security
+        passwordField.setText("");
+        passwordField.requestFocus();
         
-        // Add role-specific welcome note
-        message.append(getRoleSpecificMessage(role));
-        
-        return message.toString();
+        // Log failed attempt
+        LOGGER.warning("❌ Failed login attempt for employee ID: " + employeeIdField.getText());
     }
-
+    
     /**
-     * Get role-specific welcome message
+     * SIMPLIFIED: Open appropriate interface based on position
      */
-    private String getRoleSpecificMessage(UserRole role) {
-        switch (role) {
-            case CEO:
-            case VP:
-            case DIRECTOR:
-                return "🏆 Executive Access Granted\n" +
-                       "You have full access to strategic insights, financial analytics,\n" +
-                       "and executive management tools.";
-                       
-            case HR_MANAGER:
-            case HR_SPECIALIST:
-            case HR_ASSISTANT:
-                return "👥 HR Management Access\n" +
-                       "You can manage employees, process HR requests,\n" +
-                       "and access comprehensive HR analytics.";
-                       
-            case PAYROLL_ADMIN:
-                return "💰 Payroll Administration Access\n" +
-                       "You have access to payroll processing, salary management,\n" +
-                       "and financial reporting tools.";
-                       
-            case MANAGER:
-            case SUPERVISOR:
-            case TEAM_LEADER:
-                return "👔 Management Access\n" +
-                       "You can manage your team, approve requests,\n" +
-                       "and access management reporting tools.";
-                       
-            case IT_ADMIN:
-                return "🔧 IT Administration Access\n" +
-                       "You have access to system settings, user management,\n" +
-                       "and technical administration tools.";
-                       
-            default:
-                return "✨ Employee Portal Access\n" +
-                       "You can view your profile, submit requests,\n" +
-                       "and access your personal HR information.";
-        }
-    }
-
-    /**
-     * Show enhanced welcome dialog with role information
-     */
-    private void showRoleWelcomeDialog(Employee employee, UserRole role, String dashboardType, String welcomeMessage) {
-        // Create custom dialog
-        JDialog welcomeDialog = new JDialog(this, "Welcome to MotorPH", true);
-        welcomeDialog.setLayout(new BorderLayout());
-        welcomeDialog.setSize(500, 350);
-        welcomeDialog.setLocationRelativeTo(this);
-        
-        // Header panel with role-specific styling
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        Color roleColor = getRoleColor(role);
-        headerPanel.setBackground(roleColor);
-        headerPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        
-        JLabel headerLabel = new JLabel("🏢 MotorPH Payroll System", SwingConstants.CENTER);
-        headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        headerLabel.setForeground(Color.WHITE);
-        
-        JLabel roleLabel = new JLabel(dashboardType, SwingConstants.CENTER);
-        roleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        roleLabel.setForeground(Color.WHITE);
-        
-        headerPanel.add(headerLabel, BorderLayout.CENTER);
-        headerPanel.add(roleLabel, BorderLayout.SOUTH);
-        
-        // Content panel
-        JPanel contentPanel = new JPanel(new BorderLayout());
-        contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        contentPanel.setBackground(Color.WHITE);
-        
-        JTextArea messageArea = new JTextArea(welcomeMessage);
-        messageArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        messageArea.setEditable(false);
-        messageArea.setOpaque(false);
-        messageArea.setWrapStyleWord(true);
-        messageArea.setLineWrap(true);
-        
-        // Button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout());
-        buttonPanel.setOpaque(false);
-        
-        JButton continueButton = new JButton("Continue to Dashboard");
-        continueButton.setBackground(roleColor);
-        continueButton.setForeground(Color.WHITE);
-        continueButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        continueButton.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
-        continueButton.setFocusPainted(false);
-        continueButton.addActionListener(e -> welcomeDialog.dispose());
-        
-        buttonPanel.add(continueButton);
-        
-        contentPanel.add(messageArea, BorderLayout.CENTER);
-        contentPanel.add(buttonPanel, BorderLayout.SOUTH);
-        
-        welcomeDialog.add(headerPanel, BorderLayout.NORTH);
-        welcomeDialog.add(contentPanel, BorderLayout.CENTER);
-        
-        // Auto-close after 5 seconds
-        Timer autoCloseTimer = new Timer(5000, e -> {
-            if (welcomeDialog.isVisible()) {
-                welcomeDialog.dispose();
-            }
-        });
-        autoCloseTimer.setRepeats(false);
-        autoCloseTimer.start();
-        
-        welcomeDialog.setVisible(true);
-    }
-
-    /**
-     * Get role-specific color for UI theming
-     */
-    private Color getRoleColor(UserRole role) {
-        if (role.isExecutiveLevel()) {
-            return new Color(44, 62, 80); // Executive - Dark blue
-        } else if (role.canAccessHR()) {
-            return new Color(155, 89, 182); // HR - Purple
-        } else if (role.canAccessPayroll()) {
-            return new Color(230, 126, 34); // Payroll - Orange
-        } else if (role.isManagementLevel()) {
-            return new Color(39, 174, 96); // Management - Green
-        } else {
-            return new Color(41, 128, 185); // Employee - Blue
-        }
-    }
-
-    /**
-     * Open the appropriate dashboard based on user role
-     */
-    private void openRoleBasedDashboard(Employee employee, UserRole role, String dashboardType) {
+    private void openAppropriateInterface(Employee employee) {
         try {
-            showStatus("🚀 Loading " + dashboardType + "...", new Color(0, 100, 200));
+            showStatus("🚀 Loading dashboard...", new Color(0, 100, 200));
             
-            // Create appropriate dashboard using the factory
-            JFrame dashboard = DashboardFactory.createDashboard(employee);
+            // Determine dashboard type based on position
+            String position = employee.getPosition();
+            JFrame dashboard = null;
             
-            if (dashboard != null) {
-                // Hide login form
-                this.setVisible(false);
+            if (position != null) {
+                String positionLower = position.toLowerCase();
                 
-                // Show the dashboard
-                dashboard.setVisible(true);
-                
-                // Log dashboard launch
-                LOGGER.info(String.format("✅ Dashboard launched successfully: %s for %s", 
-                        dashboard.getClass().getSimpleName(), employee.getFullName()));
-                
-                // Dispose login form after dashboard is shown
-                SwingUtilities.invokeLater(() -> {
-                    this.dispose();
-                });
-                
-            } else {
-                throw new RuntimeException("Dashboard factory returned null");
+                // HR positions get HR Dashboard
+                if (positionLower.contains("hr") || positionLower.contains("human resources")) {
+                    dashboard = new ui.HRDashboard(employee);
+                }
+                // Executive positions get HR Dashboard (they can manage everything)
+                else if (positionLower.contains("chief") || positionLower.contains("ceo") || 
+                         positionLower.contains("coo") || positionLower.contains("cfo")) {
+                    dashboard = new ui.HRDashboard(employee);
+                }
+                // All other employees get Employee Dashboard
+                else {
+                    dashboard = new ui.EmployeeDashboard(employee);
+                }
             }
+            
+            // Fallback to Employee Dashboard if no specific match
+            if (dashboard == null) {
+                dashboard = new ui.EmployeeDashboard(employee);
+            }
+            
+            // Hide login form and show dashboard
+            this.setVisible(false);
+            dashboard.setVisible(true);
+            
+            // Log dashboard launch
+            LOGGER.info(String.format("✅ Dashboard launched successfully: %s for %s", 
+                    dashboard.getClass().getSimpleName(), employee.getFullName()));
+            
+            // Dispose login form after dashboard is shown
+            SwingUtilities.invokeLater(() -> {
+                this.dispose();
+            });
             
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "❌ Failed to open dashboard for " + employee.getFullName(), e);
-	    showStatus("❌ Failed to load dashboard. Opening fallback interface...", new Color(255, 0, 0));
+            showStatus("❌ Failed to load dashboard. Opening fallback interface...", new Color(255, 0, 0));
             openFallbackDashboard(employee);
         }
     }
@@ -752,9 +619,6 @@ public class LoginForm extends JFrame {
      */
     private void openFallbackDashboard(Employee employee) {
         try {
-            // Import your existing dashboard classes here
-            // For example, if you have a MainDashboard class:
-            
             JOptionPane.showMessageDialog(this,
                 "⚠️ The advanced dashboard system encountered an issue.\n" +
                 "Opening basic employee interface.\n\n" +
@@ -762,13 +626,12 @@ public class LoginForm extends JFrame {
                 "Dashboard Loading Issue",
                 JOptionPane.WARNING_MESSAGE);
             
-            // You can uncomment and modify this based on your existing dashboard:
-            // MainDashboard mainDash = new MainDashboard(employee);
-            // mainDash.setVisible(true);
-            // this.dispose();
+            // Open basic employee dashboard as fallback
+            ui.EmployeeDashboard fallbackDash = new ui.EmployeeDashboard(employee);
+            fallbackDash.setVisible(true);
+            this.dispose();
             
-            // For now, just close the login and let user try again
-            LOGGER.warning("🔄 Fallback: Returning to login screen");
+            LOGGER.info("🔄 Fallback dashboard opened successfully");
             
         } catch (Exception fallbackError) {
             LOGGER.log(Level.SEVERE, "❌ Even fallback dashboard failed", fallbackError);
@@ -797,20 +660,6 @@ public class LoginForm extends JFrame {
         } else {
             LOGGER.info("ℹ️ " + message);
         }
-    }
-
-    /**
-     * Check if user has specific feature access
-     */
-    private boolean canAccessFeature(Employee employee, String feature) {
-        return DashboardFactory.canAccessFeature(employee, feature);
-    }
-
-    /**
-     * Get dashboard name for logging
-     */
-    private String getDashboardName(Employee employee) {
-        return DashboardFactory.getDashboardName(employee);
     }
 
     // ========================================
@@ -851,7 +700,8 @@ public class LoginForm extends JFrame {
     public static void main(String[] args) {
         // Set system look and feel
         try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeel());
+            // FIXED: Use cross-platform look and feel to avoid compatibility issues
+            UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeel());
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Could not set system look and feel", e);
         }

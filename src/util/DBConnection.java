@@ -23,7 +23,7 @@ public class DBConnection {
     
     // Connection URL
     private static final String DB_URL = String.format(
-        "jdbc:mysql://%s:%s/%s?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8",
+        "jdbc:mysql://%s:%s/%s?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true",
         DB_HOST, DB_PORT, DB_NAME
     );
     

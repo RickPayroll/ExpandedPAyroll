@@ -1077,8 +1077,8 @@ public class HRDashboard extends JFrame {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             try {
-                // Set system look and feel - commented out to avoid compatibility issues
-                // UIManager.setLookAndFeel(UIManager.getSystemLookAndFeel());
+                // FIXED: Use cross-platform look and feel
+                UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeel());
                 
                 // Create test user for demonstration
                 Employee testUser = new Employee();
